@@ -18,11 +18,11 @@ const corsOptions = {
 }
 
 const pool = mysql.createPool({
-    host: process.env.host,
-    user: process.env.user,
-    password: process.env.password,
-    database: process.env.database,
-})
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+});
 
 app.use(cors(corsOptions));
 
@@ -94,8 +94,8 @@ function validaUsuario(nome, email, senha, telefone) {
 
     return { valid: true };
 }
-function validaHorario(pets, tipo_atendimento, modalidade, endereco, id_cliente) {
-    if (!pets || !tipo_atendimento || !modalidade ||  !endereco || !id_cliente) {
+function validaHorario(pets, tipo_atendimento, modalidade, endereco, horario_atendimento, id_cliente) {
+    if (!pets || !tipo_atendimento || !modalidade ||  !endereco || !horario_atendimento || !id_cliente) {
         return { valid: false, message: "Os campos são obrigatórios." };
     }
 
@@ -144,28 +144,49 @@ function validaEndereco(endereco) {
     return { valid: true };
 }
 
-async function validaCliente(cliente) {
+async function validaCliente(id_cliente) {
 
-    const buscaClienteQuery = "SELECT id FROM usuaiors WHERE id = ?";
+    const buscaClienteQuery = "SELECT id FROM usuarios WHERE id = ?";
 
-    const buscaCliente = await pool.execute(buscaClienteQuery, [cliente.id]);
+    const buscaCliente = await pool.execute(buscaClienteQuery, [id_cliente]);
 
     const clienteExiste = buscaCliente[0].length > 0;
 
     if (!clienteExiste) {
-        return { valid: false, message: "O cliente fornecido não existe." };
+        return { valid: false, message: "O id fornecido não existe." };
     }
 
-    if(!cliente || !cliente.id) {
-        return { valid: false, message: "O campo cliente é obrigatório." };
+    if(!id_cliente) {
+        return { valid: false, message: "O campo id é obrigatório." };
     }
 
     return { valid: true };
 }
 
-function validaTelefone(telefone) {
+async function validaTelefone(telefone) {
     const telefoneRegex = /^\d{10,11}$/; // Aceita apenas números com 10 ou 11 dígitos
-    return telefoneRegex.test(telefone);
+
+    const testaTelefone = telefoneRegex.test(telefone);
+
+    if (!testaTelefone) {
+        return false; // Telefone não é válido
+    }
+
+    const buscaTelefoneQuery = "SELECT telefone FROM usuarios WHERE telefone = ?";
+
+    const [buscaTelefone] = await pool.execute(buscaTelefoneQuery, [telefone]);
+
+
+    if (buscaTelefone.length ===  0) {
+        return true;
+    } else{
+        return false; // Telefone existe no banco de dados
+    }
+}   
+
+function validaHorarioAtendimento(horario_atendimento) {
+    const horarioRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // Formato HH:MM (24 horas)
+    return horarioRegex.test(horario_atendimento);
 }   
 
 app.listen(port, () => {
@@ -189,10 +210,10 @@ app.post("/api/usuario", async (req, res) => {
             return res.status(400).json({ message: "O email fornecido já está em uso." });
         }
 
-        const validaTelefoneResult = validaTelefone(telefone);
+        const validaTelefoneResult = await validaTelefone(telefone);
 
         if (!validaTelefoneResult) {
-            return res.status(400).json({ message: "O telefone fornecido não é válido. Deve conter apenas números e ter 10 ou 11 dígitos." });
+            return res.status(400).json({ message: "O telefone fornecido não é válido ou já está em uso." });
         }
 
         const hashedPassword = await bcrypt.hash(senha, 10);
@@ -214,7 +235,7 @@ app.post("/api/usuario", async (req, res) => {
         res.status(201).json({ message: "Usuário criado com sucesso." });
 
     } catch (error) {
-        console.error("Erro ao criar usuário:", error);
+        console.error("Erro ao criar usuário:", error, error.stack, error.message);
         res.status(500).json({ message: "Erro interno do servidor." });
     }
 }
@@ -265,9 +286,9 @@ app.post("/api/horario", async (req, res) => {
     try {
         
 
-        const { pets, tipo_atendimento, modalidade, endereco_busca, id_cliente } = req.body;
+        const { pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, id_cliente } = req.body;
 
-        if (!validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, id_cliente).valid) {
+        if (!validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, id_cliente).valid) {
             return res.status(400).json({ message: validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, id_cliente).message });
         }
 
@@ -277,6 +298,10 @@ app.post("/api/horario", async (req, res) => {
 
         if (!validaEndereco(endereco_busca).valid) {
             return res.status(400).json({ message: validaEndereco(endereco_busca).message });
+        }
+
+        if(!validaHorarioAtendimento(horario_atendimento).valid) {
+            return res.status(400).json({ message: validaHorarioAtendimento(horario_atendimento).message });
         }
 
         if(!validaCliente(id_cliente).valid) {
@@ -289,7 +314,7 @@ app.post("/api/horario", async (req, res) => {
 
         const insertHorarioQuery = "INSERT INTO horarios (pets, tipo_atendimento, modalidade, endereco_busca, id_cliente) VALUES (?, ?, ?, ?, ?)";
 
-        await pool.execute(insertHorarioQuery, [horario]);
+        await pool.execute(insertHorarioQuery, [pets, tipo_atendimento, modalidade, endereco_busca, id_cliente]);
 
         res.status(201).json({ message: "Horário criado com sucesso." });
 
