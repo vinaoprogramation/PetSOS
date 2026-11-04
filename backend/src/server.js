@@ -135,11 +135,15 @@ function validaPets(pets) {
 }
 
 function validaEndereco(endereco) {
+    enderecoRegex = /^[0-9]{5}-[0-9]{3}$/; // Formato de CEP: 00000-000
+
+    if(!endereco.cep || !enderecoRegex.test(endereco.cep)) {
+        return { valid: false, message: "O campo cep é obrigatório e deve estar no formato 00000-000." };
+    }
+
     if (!endereco || !endereco.cep || !endereco.logradouro || !endereco.numero || !endereco.bairro || !endereco.cidade || !endereco.estado) {
         return { valid: false, message: "Todos os campos do endereço são obrigatórios." };
     }
-
-
 
     return { valid: true };
 }
@@ -186,7 +190,14 @@ async function validaTelefone(telefone) {
 
 function validaHorarioAtendimento(horario_atendimento) {
     const horarioRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // Formato HH:MM (24 horas)
-    return horarioRegex.test(horario_atendimento);
+    testeHorario = horarioRegex.test(horario_atendimento);
+
+    if (!testeHorario) {
+        return { valid: false, message: "O campo horario_atendimento deve estar no formato HH:MM (24 horas)." };
+    } else {
+        return { valid: true };
+    }
+    
 }   
 
 app.listen(port, () => {
@@ -253,6 +264,7 @@ app.post("/api/login", async (req, res) => {
 
         const [rows] = await pool.execute(buscaUsuarioQuery, [email]);
 
+
         if (rows.length === 0) {
             return res.status(400).json({ message: "Email ou senha incorretos." });
         }
@@ -284,37 +296,52 @@ app.post("/api/login", async (req, res) => {
 app.use(middlewareAutenticacao);
 app.post("/api/horario", async (req, res) => {
     try {
-        
 
         const { pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, id_cliente } = req.body;
+
+        console.log("Dados recebidos para criar horário:", { pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, id_cliente })
 
         if (!validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, id_cliente).valid) {
             return res.status(400).json({ message: validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, id_cliente).message });
         }
 
+        console.log("aqui")
+
         if(!validaPets(pets).valid) {
             return res.status(400).json({ message: validaPets(pets).message });
         }
+
+        console.log("aqui")
 
         if (!validaEndereco(endereco_busca).valid) {
             return res.status(400).json({ message: validaEndereco(endereco_busca).message });
         }
 
+        console.log("aqui")
+
         if(!validaHorarioAtendimento(horario_atendimento).valid) {
             return res.status(400).json({ message: validaHorarioAtendimento(horario_atendimento).message });
         }
 
+        console.log("aqui")
+
         if(!validaCliente(id_cliente).valid) {
             return res.status(400).json({ message: validaCliente(id_cliente).message });
         }
+
+        console.log("aqui")
          
-        if(!validaEndereco(endereco).valid) {
-            return res.status(400).json({ message: validaEndereco(endereco).message });
+        if(!validaEndereco(endereco_busca).valid) {
+            return res.status(400).json({ message: validaEndereco(endereco_busca).message });
         }
 
-        const insertHorarioQuery = "INSERT INTO horarios (pets, tipo_atendimento, modalidade, endereco_busca, id_cliente) VALUES (?, ?, ?, ?, ?)";
+        console.log("aqui")
 
-        await pool.execute(insertHorarioQuery, [pets, tipo_atendimento, modalidade, endereco_busca, id_cliente]);
+        console.log("Dados recebidos para criar horário:", { pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, id_cliente });
+
+        const insertHorarioQuery = "INSERT INTO horarios (pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, id_cliente) VALUES (?, ?, ?, ?, ?, ?)";
+
+        await pool.execute(insertHorarioQuery, [pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, id_cliente]);
 
         res.status(201).json({ message: "Horário criado com sucesso." });
 
