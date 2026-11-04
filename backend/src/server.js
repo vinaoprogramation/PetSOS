@@ -33,6 +33,9 @@ app.get("/", (req, res) => {
 }
 )
 
+
+//MIDDLEWARES
+
 function middlewareAutenticacao(req, res, next) {
     const authHeader = req.headers.authorization;
 
@@ -61,6 +64,9 @@ function middlewareAutenticacao(req, res, next) {
     });
 }
 
+
+// AUTENTICAÇÃO
+
 function autentica(payload) {
     if (!process.env.JWT_SECRET) {
         throw new Error("JWT_SECRET não está definido no arquivo .env");
@@ -74,10 +80,31 @@ function autentica(payload) {
     return token;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+// VALIDAÇÃO
+
 function validateEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 }
+
+
+
+
+
+
 
 function validaUsuario(nome, email, senha, telefone) {
     if (!nome || !email || !senha || !telefone) {
@@ -94,13 +121,37 @@ function validaUsuario(nome, email, senha, telefone) {
 
     return { valid: true };
 }
+
+
+
+
+
+
+
+
+
+
+
+
 function validaHorario(pets, tipo_atendimento, modalidade, endereco, horario_atendimento, tempo_atendimento, dia_atendimento, id_cliente) {
+
     if (!pets || !tipo_atendimento || !modalidade || !endereco || !horario_atendimento || !tempo_atendimento || !dia_atendimento || !id_cliente) {
         return { valid: false, message: "Os campos são obrigatórios." };
     }
 
     return { valid: true };
 }
+
+
+
+
+
+
+
+
+
+
+
 
 function validaPets(pets) {
     const numero_pets = parseInt(pets.numero_pets);
@@ -134,6 +185,18 @@ function validaPets(pets) {
     return { valid: true };
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
 function validaEndereco(endereco) {
     enderecoRegex = /^[0-9]{5}-[0-9]{3}$/; // Formato de CEP: 00000-000
 
@@ -148,6 +211,14 @@ function validaEndereco(endereco) {
     return { valid: true };
 }
 
+
+
+
+
+
+
+
+
 async function validaCliente(id_cliente) {
 
     const buscaClienteQuery = "SELECT id FROM usuarios WHERE id = ?";
@@ -157,18 +228,25 @@ async function validaCliente(id_cliente) {
     const clienteExiste = buscaCliente[0].length !== 0;
 
     if (!id_cliente) {
-        console.log("sem id");
         return { valid: false, message: "O campo id é obrigatório." };
     }
 
     if (!clienteExiste) {
-        console.log("cliente existe");
         return { valid: false, message: "O id fornecido não existe." };
     }
 
-    console.log("valido");
     return { valid: true };
 }
+
+
+
+
+
+
+
+
+
+
 
 async function validaTelefone(telefone) {
     const telefoneRegex = /^\d{10,11}$/; // Aceita apenas números com 10 ou 11 dígitos
@@ -191,16 +269,32 @@ async function validaTelefone(telefone) {
     }
 }
 
-//VERIFICAR OS ESPAÇOS DISPONÍVEIS PARA AGENDAMENTO DE HORÁRIOS, PARA NÃO ULTRAPASSAR O LIMITE DE HORÁRIOS DISPONÍVEIS
-async function buscaHorariosPreenchidos() {
+
+
+
+
+
+
+
+
+async function buscaHorariosPreenchidos(dia_atendimento) {
     try {
+
         const verificaHorariosQuery = "SELECT COUNT(*) AS total_horarios FROM horarios WHERE dia_atendimento = ?";
 
         const [verificaHorarios] = await pool.execute(verificaHorariosQuery, [dia_atendimento]);
 
+        console.log("Aqui")
+
+        console.log(verificaHorarios[0].total_horarios)
+
         if (verificaHorarios[0].total_horarios >= 480) {
+            console.log("Limite de horários atingido para o dia de atendimento fornecido.")
             return { valid: false, message: "O limite de horários preenchidos para o dia de atendimento fornecido foi atingido." };
         }
+
+
+        console.log(aqui)
 
         const buscaHorariosQuery = "SELECT * FROM horarios WHERE dia_atendimento = ? ";
 
@@ -212,6 +306,18 @@ async function buscaHorariosPreenchidos() {
     }
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 function validaHorarioAtendimento(horario_atendimento) {
     const horarioRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // Formato HH:MM (24 horas)
@@ -225,10 +331,30 @@ function validaHorarioAtendimento(horario_atendimento) {
 
 }
 
+
+
+
+
+
+
+
+
+
+// ABRE A PORTA
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
 
+
+
+
+
+
+
+
+
+
+//POSTA USUARIO
 app.post("/api/usuario", async (req, res) => {
 
     try {
@@ -277,6 +403,17 @@ app.post("/api/usuario", async (req, res) => {
 }
 )
 
+
+
+
+
+
+
+
+
+
+// LOGIN
+
 app.post("/api/login", async (req, res) => {
     try {
         const { email, senha } = req.body;
@@ -318,7 +455,13 @@ app.post("/api/login", async (req, res) => {
 }
 )
 
+
+
+
+// IMPÕE O MODDLEWARE
 app.use(middlewareAutenticacao);
+
+// POSTA HORARIO
 app.post("/api/horario", async (req, res) => {
     try {
 
@@ -328,10 +471,11 @@ app.post("/api/horario", async (req, res) => {
             return res.status(400).json({ message: validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, id_cliente).message });
         }
 
-        if (!buscaHorariosPreenchidos().valid) {
-            return res.status(400).json({ message: buscaHorariosPreenchidos().message });
+        if (!buscaHorariosPreenchidos(dia_atendimento).valid) {
+            return res.status(400).json({ message: buscaHorariosPreenchidos(dia_atendimento).message });
         }
 
+        console.log("aquoi")
         if (!validaPets(pets).valid) {
             return res.status(400).json({ message: validaPets(pets).message });
         }
