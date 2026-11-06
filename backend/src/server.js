@@ -133,9 +133,9 @@ function validaUsuario(nome, email, senha, telefone) {
 
 
 
-function validaHorario(pets, tipo_atendimento, modalidade, endereco, horario_atendimento, tempo_atendimento, dia_atendimento, id_cliente) {
+function validaHorario(pets, tipo_atendimento, modalidade, endereco, horario_atendimento, dia_atendimento, id_cliente) {
 
-    if (!pets || !tipo_atendimento || !modalidade || !endereco || !horario_atendimento || !tempo_atendimento || !dia_atendimento || !id_cliente) {
+    if (!pets || !tipo_atendimento || !modalidade || !endereco || !horario_atendimento || !dia_atendimento || !id_cliente) {
         return { valid: false, message: "Os campos são obrigatórios." };
     }
 
@@ -167,7 +167,7 @@ function validaPets(pets) {
     }
 
     const verificaLista = lista_pets.map((pet, index) => {
-        if (!pet.nome || !pet.qualidade_pelo || !pet.idade) {
+        if (!pet.nome || !pet.qualidade_pelo || !pet.idade || !pet.raca) {
             return { valid: false, message: `O pet na posição ${index} não possui todos os campos obrigatórios (nome, qualidade_pelo, idade).` };
         }
         return { valid: true };
@@ -182,7 +182,9 @@ function validaPets(pets) {
         return { valid: false, message: "O campo pets é obrigatório." };
     }
 
-    return { valid: true };
+    const tempo = numero_pets * 30
+
+    return { valid: true, tempo: tempo };
 }
 
 
@@ -284,23 +286,18 @@ async function buscaHorariosPreenchidos(dia_atendimento) {
 
         const [verificaHorarios] = await pool.execute(verificaHorariosQuery, [dia_atendimento]);
 
-        console.log("Aqui")
-
-        console.log(verificaHorarios[0].total_horarios)
-
         if (verificaHorarios[0].total_horarios >= 480) {
             console.log("Limite de horários atingido para o dia de atendimento fornecido.")
             return { valid: false, message: "O limite de horários preenchidos para o dia de atendimento fornecido foi atingido." };
         }
 
-
-        console.log(aqui)
-
-        const buscaHorariosQuery = "SELECT * FROM horarios WHERE dia_atendimento = ? ";
+        const buscaHorariosQuery = "SELECT horario_atendimento, tempo_atendimento FROM horarios WHERE dia_atendimento = ? ";
 
         const [buscaHorarios] = await pool.execute(buscaHorariosQuery, [dia_atendimento]);
 
-        return { valid: true, horarios: buscaHorarios };
+        console.log(buscaHorarios)
+
+        return { valid: true, message: "Horários disponíveis para o dia de atendimento fornecido.", horarios: buscaHorarios };
     } catch (error) {
         return { valid: false, message: "Erro ao buscar horários preenchidos." };
     }
@@ -319,9 +316,13 @@ async function buscaHorariosPreenchidos(dia_atendimento) {
 
 
 
-function validaHorarioAtendimento(horario_atendimento) {
-    const horarioRegex = /^([01]\d|2[0-3]):([0-5]\d)$/; // Formato HH:MM (24 horas)
+function validaHorarioAtendimento(horario_atendimento, tempo) {
+    const horarioRegex = /^([01]\d|2[0-1]):([0-5]\d)$/; // Formato HH:MM (24 horas)
     testeHorario = horarioRegex.test(horario_atendimento);
+
+    if(horario_atendimento.split(":")[0] == 17 && horario_atendimento.split(":")[1] == 30 && tempo > 30){
+        return { valid: false, message: "Horário ultrapassa expediente" };
+    }
 
     if (!testeHorario) {
         return { valid: false, message: "O campo horario_atendimento deve estar no formato HH:MM (24 horas)." };
@@ -331,8 +332,104 @@ function validaHorarioAtendimento(horario_atendimento) {
 
 }
 
+function validaTipoAtendimento(tipo_atendimento) {
+    const tiposValidos = ["banho", "tosa", "banho_e_tosa"];
+
+    if (!tiposValidos.includes(tipo_atendimento)) {
+        return { valid: false, message: "O campo tipo_atendimento deve ser 'banho', 'tosa' ou 'banho_e_tosa'." };
+    }
+
+    return { valid: true }
+}
 
 
+function validaModalidade(modalidade) {
+    const modalidades = ["taxi", "normal"]
+
+    if (!modalidades.includes(modalidade)) {
+        return { valid: false, message: "O campo modalidade deve ser 'taxi' ou 'normal'." };
+    }
+
+    return { valid: true }
+}
+
+function validaDiaAtendimento(dia_atendimento) {
+    const regexFormato = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+    if (!regexFormato.test(dia_atendimento)) {
+        return { valid: false, menssage: "Formato inválido" };
+    }
+
+    console.log("Passou 1")
+
+    const [ano, mes, dia] = dia_atendimento.split('-').map(Number);
+
+    const dataRef = new Date(ano, mes - 1, dia);
+
+    console.log("Passou 2")
+
+    if (
+        !dataRef.getFullYear() === ano ||
+        !dataRef.getMonth() === (mes - 1) ||
+        !dataRef.getDate() === dia
+    ) {
+        return { valid: false, menssage: "A data informada é inválida"}
+    }
+
+    console.log("Passou 3")
+    return { valid: true };
+}
+
+function validaIdCliente(id){
+    if (!Number(parseInt(id)) || id <=0 ) {
+        return { valid: false, message: "O campo id um inteiro positivo "};
+    }
+
+    return {valid: true }
+
+}
+
+
+async function validacaoGeral(pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, dia_atendimento, id_cliente) {
+    try {
+
+        const validandoPets = validaPets(pets)
+
+        if (!validandoPets.valid) {
+            return { valid: false, message: validandoPets.message };
+        }
+
+        if (!validaTipoAtendimento(tipo_atendimento).valid) {
+            return { valid: false, message: validaTipoAtendimento(tipo_atendimento).message };
+        }
+
+        if (!validaModalidade(modalidade).valid) {
+            return { valid: false, message: validaModalidade(modalidade).message };
+        }
+
+
+        if (!validaEndereco(endereco_busca).valid) {
+            return { valid: false, message: validaEndereco(endereco_busca).message };
+        }
+
+        if (!validaHorarioAtendimento(horario_atendimento, validandoPets.tempo).valid) {
+            return { valid: false, message: validaHorarioAtendimento(horario_atendimento).message };
+        }
+
+        if (!validaDiaAtendimento(dia_atendimento).valid) {
+            return { valid: false, message: validaDiaAtendimento(dia_atendimento).message };
+        }
+
+        if (!validaIdCliente(id_cliente).valid) {
+            return { valid: false, message: validaIdCliente(id_cliente).message };
+        }
+
+        return {valid: true, tempo: validandoPets.tempo}
+
+    } catch (error) {
+        console.error("Erro na validação geral:", error);
+        return { valid: false, message: "Erro interno do servidor durante a validação geral." };
+    }
+}
 
 
 
@@ -465,28 +562,15 @@ app.use(middlewareAutenticacao);
 app.post("/api/horario", async (req, res) => {
     try {
 
-        const { pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, tempo_atendimento, dia_atendimento, id_cliente } = req.body;
+        const { pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, dia_atendimento, id_cliente } = req.body;
 
-        if (!validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, tempo_atendimento, dia_atendimento, id_cliente).valid) {
-            return res.status(400).json({ message: validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, id_cliente).message });
+        const validacaoResult = await validacaoGeral(pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, dia_atendimento, id_cliente);
+
+        if (!validacaoResult.valid) {
+            return res.status(400).json({ message: validacaoResult.message });
         }
 
-        if (!buscaHorariosPreenchidos(dia_atendimento).valid) {
-            return res.status(400).json({ message: buscaHorariosPreenchidos(dia_atendimento).message });
-        }
-
-        console.log("aquoi")
-        if (!validaPets(pets).valid) {
-            return res.status(400).json({ message: validaPets(pets).message });
-        }
-
-        if (!validaEndereco(endereco_busca).valid) {
-            return res.status(400).json({ message: validaEndereco(endereco_busca).message });
-        }
-
-        if (!validaHorarioAtendimento(horario_atendimento).valid) {
-            return res.status(400).json({ message: validaHorarioAtendimento(horario_atendimento).message });
-        }
+        const tempo = parseInt(validacaoResult.tempo)
 
         const validaClienteResult = await validaCliente(id_cliente);
 
@@ -494,13 +578,40 @@ app.post("/api/horario", async (req, res) => {
             return res.status(400).json({ message: validaCliente(id_cliente).message });
         }
 
-        if (!validaEndereco(endereco_busca).valid) {
-            return res.status(400).json({ message: validaEndereco(endereco_busca).message });
+        const buscaHorarios = await buscaHorariosPreenchidos(dia_atendimento)
+
+        if (!buscaHorarios.valid) {
+            return res.status(400).json({ message: buscaHorariosPreenchidos(dia_atendimento).message });
+        }        
+
+        const horarios = buscaHorarios.horarios
+
+        let hora = horario_atendimento.split(":")[0]
+        let minutos = horario_atendimento.split(":")[1]
+
+        if(tempo == 60 && parseInt(minutos) == 30){
+            hora.split()[0] == 0 && hora.split()[1] < 9? hora = `0${hora+1}` : hora.split()[0] == 0 && hora.split()[1] == 9? hora = `10` : hora
+            minutos == "0"
+        } else if(tempo == 60 && parseInt(minutos) == 0){
+            minutos == "30"
+        }
+        
+        let horarioExtendido = `${hora}:${minutos}`
+
+        console.log(horario_atendimento)
+        console.log(horarioExtendido)
+        
+
+        const buscaEspaco = await horarios.every(horario => (horario.horario_atendimento.split(":00")[0] !== horario_atendimento || horario.horario_atendimento.split(":00")[0] !== horarioExtendido)
+        );
+
+        if(!buscaEspaco){
+            return res.status(400).json({ message: "Horários preenchidos" });
         }
 
-        const insertHorarioQuery = "INSERT INTO horarios (pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, tempo_atendimento, dia_atendimento, id_cliente) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        const insertHorarioQuery = "INSERT INTO horarios (pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, tempo_atendimento, dia_atendimento, id_cliente) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-        await pool.execute(insertHorarioQuery, [pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, tempo_atendimento, dia_atendimento, id_cliente]);
+        await pool.execute(insertHorarioQuery, [pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, tempo, dia_atendimento, id_cliente]);
 
         res.status(201).json({ message: "Horário criado com sucesso." });
 
@@ -510,3 +621,109 @@ app.post("/api/horario", async (req, res) => {
     }
 }
 );
+
+
+app.get("/api/horarios", async (req, res) => {
+    try {
+        const buscaHorariosQuery = "SELECT * FROM horarios";
+
+        const [buscaHorarios] = await pool.execute(buscaHorariosQuery);
+
+        res.status(200).json({ message: "Horários disponíveis.", horarios: buscaHorarios });
+    } catch (error) {
+        console.error("Erro ao buscar horários:", error);
+        res.status(500).json({ message: "Erro interno do servidor." });
+    }
+}
+)
+
+
+app.get("/api/horarios/:dia_atendimento", async (req, res) => {
+    try {
+        const { dia_atendimento } = req.params;
+
+        const resultado = await buscaHorariosPreenchidos(dia_atendimento);
+
+        if (!resultado.valid) {
+            return res.status(400).json({ message: resultado.message });
+        }
+
+        res.status(200).json({ message: resultado.message, horarios: resultado.horarios });
+
+    } catch (error) {
+        console.error("Erro ao buscar horários:", error);
+        res.status(500).json({ message: "Erro interno do servidor." });
+    }
+}
+)
+
+
+app.delete("/api/horario/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const deleteHorarioQuery = "UPDATE horarios SET status_atual = 0 WHERE id = ?";
+
+        await pool.execute(deleteHorarioQuery, [id]);
+
+        res.status(200).json({ message: "Horário deletado com sucesso." });
+
+    } catch (error) {
+        console.error("Erro ao deletar horário:", error);
+        res.status(500).json({ message: "Erro interno do servidor." });
+    }
+}
+)
+
+app.put("/api/horario/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, dia_atendimento } = req.body;
+
+        if (!validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, dia_atendimento).valid) {
+            return res.status(400).json({ message: validaHorario(pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, dia_atendimento).message });
+        }
+
+        const validacaoResult = await validacaoGeral(pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, dia_atendimento, id_cliente);
+
+        if (!validacaoResult.valid) {
+            return res.status(400).json({ message: validacaoResult.message });
+        }
+
+        const tempo = validacaoResult.tempo
+
+        const updateHorarioQuery = "UPDATE horarios SET pets = ?, tipo_atendimento = ?, modalidade = ?, endereco_busca = ?, horario_atendimento = ?, tempo_atendimento = ?, dia_atendimento = ? WHERE id = ?";
+
+        await pool.execute(updateHorarioQuery, [pets, tipo_atendimento, modalidade, endereco_busca, horario_atendimento, tempo, dia_atendimento, id]);
+
+        res.status(200).json({ message: "Horário atualizado com sucesso." });
+    } catch (error) {
+        console.error("Erro ao atualizar horário:", error);
+        res.status(500).json({ message: "Erro interno do servidor." });
+    }
+}
+)
+
+app.put("/api/altera/horario/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { horario_atendimento, dia_atendimento } = req.body;
+
+        if (!validaHorarioAtendimento(horario_atendimento).valid) {
+            return res.status(400).json({ message: validaHorarioAtendimento(horario_atendimento).message });
+        }
+
+        if (!validaDiaAtendimento(dia_atendimento).valid) {
+            return res.status(400).json({ message: validaDiaAtendimento(dia_atendimento).message });
+        }
+
+        const updateHorarioQuery = "UPDATE horarios SET horario_atendimento = ?, dia_atendimento = ? WHERE id = ?";
+
+        await pool.execute(updateHorarioQuery, [horario_atendimento, dia_atendimento, id]);
+        res.status(200).json({ message: "Horário alterado com sucesso." });
+    } catch (error) {
+        console.error("Erro ao alterar horário:", error);
+        res.status(500).json({ message: "Erro interno do servidor." });
+    }
+}
+)
