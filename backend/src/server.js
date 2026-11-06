@@ -586,17 +586,42 @@ app.post("/api/horario", async (req, res) => {
 
         const horarios = buscaHorarios.horarios
 
+        console.log(tempo)
+
         let hora = horario_atendimento.split(":")[0]
         let minutos = horario_atendimento.split(":")[1]
 
+        console.log(hora)
+        console.log(minutos)
+
+        console.log(tempo == 60 && parseInt(minutos) == 30)
+        
+        let horarioExtendido
+
         if(tempo == 60 && parseInt(minutos) == 30){
-            hora.split()[0] == 0 && hora.split()[1] < 9? hora = `0${hora+1}` : hora.split()[0] == 0 && hora.split()[1] == 9? hora = `10` : hora
-            minutos == "0"
+            let horaModificada;
+            separaHora = hora.split()
+            let hora1 = separaHora[0]
+            let hora2 = separaHora[1]
+            if(hora1 == 0 && hora2 == 9){
+                hora1 = 1
+                hora2 = 0
+                horaModificada = `${hora1}${hora2}`
+            } else if (){
+
+            }
+            else {
+                horaModificada = separaHora+1
+            }
+
+
+            console.log(horaModificada)
+            horarioExtendido = `${horaModificada}:00`
         } else if(tempo == 60 && parseInt(minutos) == 0){
             minutos == "30"
         }
         
-        let horarioExtendido = `${hora}:${minutos}`
+        
 
         console.log(horario_atendimento)
         console.log(horarioExtendido)
